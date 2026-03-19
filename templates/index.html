@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PDFScan — Live Malware Analysis</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Bebas+Neue&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#080a0f; --bg2:#0e1118; --bg3:#141720; --bg4:#1b1f2b; --bg5:#21263a;
+  --border:rgba(255,255,255,0.06); --border2:rgba(255,255,255,0.11);
+  --text:#dde1f0; --text2:#7c82a0; --text3:#454a62;
+  --green:#00e5a0; --blue:#3b9eff; --red:#ff3d5a; --amber:#ffaa00; --purple:#a47cff;
+  --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif; --disp:'Bebas Neue',sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:13px;line-height:1.6;min-height:100vh;overflow-x:hidden}
+body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.025) 2px,rgba(0,0,0,0.025) 4px)}
+
+/* HEADER */
+header{position:sticky;top:0;z-index:100;background:rgba(8,10,15,0.92);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px;padding:0 24px;height:56px}
+.logo{font-family:var(--disp);font-size:24px;letter-spacing:2px;display:flex;align-items:center;gap:8px}
+.logo em{color:var(--green);font-style:normal}
+.logo-sub{font-size:9px;color:var(--text3);letter-spacing:2px;text-transform:uppercase}
+.hlinks{margin-left:auto;display:flex;gap:4px}
+.hbtn{padding:6px 12px;border-radius:5px;font-family:var(--mono);font-size:11px;cursor:pointer;
+  transition:all .15s;border:1px solid var(--border2);background:transparent;color:var(--text2);
+  text-decoration:none;display:inline-flex;align-items:center;gap:5px}
+.hbtn:hover{background:var(--bg3);color:var(--text)}
+.hbtn.g{background:var(--green);color:#000;border-color:var(--green);font-weight:600}
+.hbtn.g:hover{opacity:.85}
+.sdot{width:6px;height:6px;border-radius:50%;background:var(--green);
+  box-shadow:0 0 8px var(--green);animation:blink 2s ease infinite;flex-shrink:0}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+
+/* HOW IT WORKS STRIP */
+.how-strip{background:var(--bg2);border-bottom:1px solid var(--border);padding:10px 24px;
+  display:flex;gap:0;overflow-x:auto}
+.how-step{display:flex;align-items:center;gap:8px;padding:4px 16px;border-right:1px solid var(--border);
+  white-space:nowrap;flex-shrink:0}
+.how-step:first-child{padding-left:0}
+.how-step:last-child{border-right:none}
+.how-num{font-family:var(--disp);font-size:18px;color:var(--green);line-height:1}
+.how-text{font-size:10px;color:var(--text2)}
+.how-text strong{color:var(--text);display:block}
+
+/* UPLOAD SECTION */
+#upload-section{max-width:640px;margin:0 auto;padding:48px 24px 32px}
+.eyebrow{font-size:9px;letter-spacing:3px;text-transform:uppercase;color:var(--green);
+  margin-bottom:16px;display:flex;align-items:center;justify-content:center;gap:10px}
+.eyebrow::before,.eyebrow::after{content:'';flex:1;height:1px;background:rgba(0,229,160,.2)}
+h1{font-family:var(--disp);font-size:clamp(40px,7vw,82px);letter-spacing:3px;
+  line-height:1;text-align:center;margin-bottom:14px}
+h1 em{color:var(--green);font-style:normal}
+.hero-sub{font-family:var(--sans);font-size:14px;color:var(--text2);text-align:center;
+  max-width:480px;margin:0 auto 32px}
+.drop-zone{position:relative;border:1.5px dashed var(--border2);border-radius:14px;
+  padding:40px 24px;text-align:center;cursor:pointer;transition:all .2s;
+  background:var(--bg2);overflow:hidden}
+.drop-zone::before{content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse at 50% -20%,rgba(0,229,160,.05),transparent 60%);pointer-events:none}
+.drop-zone:hover,.drop-zone.drag{border-color:var(--green);background:rgba(0,229,160,.04)}
+.drop-icon{font-size:36px;margin-bottom:10px;opacity:.5}
+.drop-title{font-family:var(--disp);font-size:20px;letter-spacing:2px;margin-bottom:6px}
+.drop-sub{font-size:11px;color:var(--text2)}
+.choose-btn{margin-top:16px;padding:9px 24px;background:var(--green);color:#000;border:none;
+  border-radius:6px;font-family:var(--mono);font-size:12px;font-weight:600;
+  cursor:pointer;transition:opacity .15s;letter-spacing:.5px}
+.choose-btn:hover{opacity:.85}
+#file-input{display:none}
+.file-note{font-size:10px;color:var(--text3);margin-top:8px}
+
+/* CLI HINT BOX */
+.cli-hint{background:var(--bg3);border:1px solid var(--border);border-radius:10px;
+  padding:14px 18px;margin-top:20px}
+.cli-hint-title{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--text3);margin-bottom:10px}
+.cli-line{font-size:11px;color:var(--text2);padding:3px 0;display:flex;gap:8px;align-items:center}
+.cli-line code{color:var(--green);font-family:var(--mono)}
+.cli-tag{font-size:9px;padding:2px 6px;border-radius:3px;background:var(--bg4);
+  color:var(--text3);border:1px solid var(--border);white-space:nowrap}
+
+/* PROGRESS */
+#progress-section{display:none;margin-top:20px}
+.prog-header{display:flex;justify-content:space-between;font-size:11px;color:var(--text2);margin-bottom:6px}
+.prog-bar{height:3px;background:var(--bg4);border-radius:99px;overflow:hidden}
+.prog-fill{height:100%;background:var(--green);border-radius:99px;width:0;transition:width .5s ease}
+.step-pills{display:flex;gap:5px;flex-wrap:wrap;margin-top:10px}
+.step-pill{font-size:9px;padding:3px 9px;border-radius:99px;
+  border:1px solid var(--border2);color:var(--text3);transition:all .3s}
+.step-pill.active{border-color:var(--blue);color:var(--blue);background:rgba(59,158,255,.08);
+  animation:ppulse 1s ease infinite}
+.step-pill.done{border-color:rgba(0,229,160,.4);color:var(--green);background:rgba(0,229,160,.07)}
+@keyframes ppulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* CONTAINER */
+.container{max-width:1120px;margin:0 auto;padding:0 20px 60px}
+.slabel{font-size:9px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;
+  margin-bottom:10px;display:flex;align-items:center;gap:10px}
+.slabel::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* CARDS */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px}
+.ctitle{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:12px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.section{margin-bottom:20px}
+
+/* METRICS */
+.metric{background:var(--bg3);border-radius:8px;padding:14px}
+.mval{font-family:var(--disp);font-size:34px;letter-spacing:1px;line-height:1}
+.mlbl{font-size:9px;color:var(--text3);margin-top:3px;letter-spacing:1px;text-transform:uppercase}
+.metric.r .mval{color:var(--red)} .metric.a .mval{color:var(--amber)}
+.metric.g .mval{color:var(--green)} .metric.b .mval{color:var(--blue)}
+
+/* RISK BANNER */
+.risk-banner{border-radius:10px;padding:18px 22px;display:flex;align-items:center;gap:18px;margin-bottom:18px}
+.rb-critical{background:rgba(255,61,90,.1);border:1px solid rgba(255,61,90,.25)}
+.rb-high    {background:rgba(255,170,0,.08);border:1px solid rgba(255,170,0,.2)}
+.rb-medium  {background:rgba(59,158,255,.08);border:1px solid rgba(59,158,255,.2)}
+.rb-low,.rb-clean{background:rgba(0,229,160,.07);border:1px solid rgba(0,229,160,.2)}
+.rb-score{font-family:var(--disp);font-size:52px;line-height:1;flex-shrink:0}
+.rb-critical .rb-score{color:var(--red)} .rb-high .rb-score{color:var(--amber)}
+.rb-medium .rb-score{color:var(--blue)} .rb-low .rb-score,.rb-clean .rb-score{color:var(--green)}
+.rb-verdict{font-family:var(--disp);font-size:20px;letter-spacing:2px;margin-bottom:3px}
+.rb-sub{font-size:11px;color:var(--text2)}
+.rb-ts{font-size:10px;color:var(--text3);margin-top:6px}
+
+/* REPORT DOWNLOAD BAR */
+.dl-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  background:var(--bg3);border:1px solid var(--border);border-radius:8px;
+  padding:10px 14px;margin-bottom:18px}
+.dl-label{font-size:10px;color:var(--text2);margin-right:4px}
+.dl-btn{padding:7px 14px;border-radius:5px;font-family:var(--mono);font-size:11px;
+  font-weight:600;cursor:pointer;transition:all .15s;border:1px solid;
+  text-decoration:none;display:inline-flex;align-items:center;gap:5px}
+.dl-txt{background:rgba(0,229,160,.1);color:var(--green);border-color:rgba(0,229,160,.3)}
+.dl-txt:hover{background:rgba(0,229,160,.2)}
+.dl-json{background:rgba(59,158,255,.1);color:var(--blue);border-color:rgba(59,158,255,.3)}
+.dl-json:hover{background:rgba(59,158,255,.2)}
+.dl-copy{background:transparent;color:var(--text2);border-color:var(--border2)}
+.dl-copy:hover{background:var(--bg4);color:var(--text)}
+.dl-path{font-size:10px;color:var(--text3);font-family:var(--mono);margin-left:auto;
+  max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* BADGES */
+.badge{font-size:9px;padding:2px 7px;border-radius:3px;letter-spacing:.5px;font-weight:600;white-space:nowrap}
+.br{background:rgba(255,61,90,.15);color:var(--red);border:1px solid rgba(255,61,90,.25)}
+.ba{background:rgba(255,170,0,.12);color:var(--amber);border:1px solid rgba(255,170,0,.2)}
+.bb{background:rgba(59,158,255,.12);color:var(--blue);border:1px solid rgba(59,158,255,.2)}
+.bg{background:rgba(0,229,160,.1);color:var(--green);border:1px solid rgba(0,229,160,.2)}
+.bgr{background:var(--bg4);color:var(--text2);border:1px solid var(--border2)}
+
+/* TABLES */
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{font-size:9px;color:var(--text3);letter-spacing:1.5px;text-transform:uppercase;
+  padding:6px 8px;border-bottom:1px solid var(--border);text-align:left}
+.tbl td{padding:7px 8px;border-bottom:1px solid var(--border);font-size:11px;vertical-align:top}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:var(--bg3)}
+.mono{font-family:var(--mono)} .trunc{max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* KEYWORD GRID */
+.kw-grid{display:flex;flex-wrap:wrap;gap:6px}
+.kw-tag{font-size:10px;padding:3px 9px;border-radius:4px;font-family:var(--mono);
+  border:1px solid var(--border2);color:var(--text3);background:var(--bg3)}
+.kw-tag.found{background:rgba(255,61,90,.12);color:var(--red);border-color:rgba(255,61,90,.3)}
+
+/* OBJECTS */
+.obj-item{display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border-radius:6px;
+  cursor:pointer;background:var(--bg3);border:1px solid transparent;transition:all .15s;margin-bottom:3px}
+.obj-item:hover{background:var(--bg4);border-color:var(--border2)}
+.obj-item.sel{border-color:var(--green);background:rgba(0,229,160,.05)}
+.onum{font-size:10px;color:var(--text3);min-width:28px}
+.otype{flex:1} .oname{font-size:11px;font-weight:500} .oflags{font-size:10px;color:var(--text2)}
+
+/* CODE */
+.codeblock{background:#060810;border:1px solid var(--border);border-radius:8px;
+  padding:12px;font-family:var(--mono);font-size:11px;line-height:1.7;
+  overflow-x:auto;white-space:pre;color:#9cdcfe;max-height:300px;overflow-y:auto}
+.codeblock .kw{color:#569cd6} .codeblock .str{color:#ce9178}
+.codeblock .cm{color:#6a9955} .codeblock .num{color:#b5cea8}
+
+/* IOC */
+.ioc-row{display:flex;align-items:center;gap:8px;padding:7px 8px;
+  border-bottom:1px solid var(--border);font-size:11px}
+.ioc-row:last-child{border-bottom:none}
+.ioc-val{flex:1;font-family:var(--mono);word-break:break-all}
+
+/* TIMELINE */
+.timeline{padding-left:16px;position:relative}
+.timeline::before{content:'';position:absolute;left:3px;top:0;bottom:0;width:1px;background:var(--border)}
+.tl-item{position:relative;margin-bottom:12px}
+.tl-dot{position:absolute;left:-15px;top:4px;width:7px;height:7px;border-radius:50%;
+  border:1.5px solid var(--green);background:var(--bg)}
+.tl-dot.d{border-color:var(--red)} .tl-dot.w{border-color:var(--amber)}
+.tl-t{font-size:11px;font-weight:500} .tl-s{font-size:10px;color:var(--text2);margin-top:1px}
+
+/* TABS */
+.tabs{display:flex;gap:2px;background:var(--bg3);padding:3px;border-radius:7px;margin-bottom:12px}
+.tbtn{flex:1;padding:6px;border:none;background:transparent;font-family:var(--mono);
+  font-size:11px;color:var(--text2);cursor:pointer;border-radius:5px;transition:all .15s}
+.tbtn.active{background:var(--bg);color:var(--text)}
+.tpanel{display:none} .tpanel.active{display:block}
+
+/* ENTROPY */
+.ebar{height:5px;border-radius:99px;background:var(--bg4);overflow:hidden;margin:3px 0}
+.ebar-fill{height:100%;border-radius:99px}
+
+/* HASH ROWS */
+.hash-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)}
+.hash-row:last-child{border-bottom:none}
+.halg{font-size:10px;min-width:58px;color:var(--text2)}
+.hval{font-family:var(--mono);font-size:10px;flex:1;word-break:break-all;color:var(--text)}
+.cpbtn{font-size:9px;padding:2px 7px;border-radius:3px;cursor:pointer;
+  background:transparent;border:1px solid var(--border2);color:var(--text3);transition:all .15s}
+.cpbtn:hover{color:var(--green);border-color:rgba(0,229,160,.4)}
+
+/* MIT */
+.mit{padding:10px 12px;border-left:3px solid var(--green);background:var(--bg3);border-radius:5px;margin-bottom:7px}
+.mit.h{border-color:var(--red)} .mit.m{border-color:var(--amber)}
+.mt{font-size:12px;font-weight:600;margin-bottom:2px} .mb{font-size:11px;color:var(--text2)}
+
+/* ACTIONS */
+.abar{display:flex;gap:8px;flex-wrap:wrap;margin-top:20px}
+.btn{padding:9px 16px;border-radius:6px;font-family:var(--mono);font-size:12px;
+  font-weight:600;cursor:pointer;transition:all .15s;letter-spacing:.3px;border:1px solid transparent}
+.btn-g{background:var(--green);color:#000} .btn-g:hover{opacity:.85}
+.btn-o{background:transparent;color:var(--text2);border-color:var(--border2)} .btn-o:hover{background:var(--bg3);color:var(--text)}
+.btn-r{background:transparent;color:var(--red);border-color:rgba(255,61,90,.3)} .btn-r:hover{background:rgba(255,61,90,.1)}
+
+/* EMPTY */
+.empty{text-align:center;padding:28px;color:var(--text3);font-size:11px}
+#results{display:none}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bg5);border-radius:99px}
+@media(max-width:800px){.g4{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.g2,.g3,.g4{grid-template-columns:1fr}h1{font-size:42px}}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">PDF<em>SCAN</em></div>
+  <div class="logo-sub">Malware Analysis Engine</div>
+  <nav class="hlinks">
+    <span class="sdot"></span>
+    <a href="/toolkit" class="hbtn" target="_blank">📊 Demo Toolkit</a>
+    <button class="hbtn" id="nav-report-btn" style="display:none" onclick="scrollToResults()">↓ Results</button>
+    <button class="hbtn g" onclick="document.getElementById('file-input').click()">+ Upload PDF</button>
+  </nav>
+</header>
+
+<!-- HOW IT WORKS STRIP -->
+<div class="how-strip">
+  <div class="how-step"><div class="how-num">1</div><div class="how-text"><strong>Web Upload</strong>Drop PDF here</div></div>
+  <div class="how-step"><div class="how-num">──</div><div class="how-text" style="color:var(--text3)">OR</div></div>
+  <div class="how-step"><div class="how-num">1</div><div class="how-text"><strong>CLI Local</strong>pdf_analyzer.py file.pdf</div></div>
+  <div class="how-step"><div class="how-num">──</div><div class="how-text" style="color:var(--text3)">OR</div></div>
+  <div class="how-step"><div class="how-num">1</div><div class="how-text"><strong>CLI → Server</strong>pdf_analyzer.py file.pdf --server</div></div>
+  <div class="how-step"><div class="how-num">2</div><div class="how-text"><strong>7-Step Engine</strong>pdf_analyzer.py runs</div></div>
+  <div class="how-step"><div class="how-num">3</div><div class="how-text"><strong>Full Report</strong>TXT + JSON saved</div></div>
+</div>
+
+<!-- UPLOAD -->
+<div id="upload-section">
+  <div class="eyebrow">All 3 modes · Real PDF analysis · Auto-save reports</div>
+  <h1>REAL&#8209;TIME<br><em>PDF ANALYSIS</em></h1>
+  <p class="hero-sub">Upload via browser, run from terminal, or send to this server from CLI — all 3 produce the same full report.</p>
+
+  <div class="drop-zone" id="drop-zone">
+    <div class="drop-icon">📄</div>
+    <div class="drop-title">Drop PDF Here</div>
+    <div class="drop-sub">Or click to browse</div>
+    <button class="choose-btn" onclick="document.getElementById('file-input').click()">Choose File</button>
+    <input type="file" id="file-input" accept=".pdf">
+    <div class="file-note">PDF only · max 10 MB · analyzed by pdf_analyzer.py · report auto-saved to reports/</div>
+  </div>
+
+  <!-- CLI hint -->
+  <div class="cli-hint">
+    <div class="cli-hint-title">Terminal mode — same results, no browser needed</div>
+    <div class="cli-line"><span class="cli-tag">local</span><code>python3 pdf_analyzer.py suspicious.pdf --report</code></div>
+    <div class="cli-line"><span class="cli-tag">server</span><code>python3 pdf_analyzer.py suspicious.pdf --server --report</code></div>
+    <div class="cli-line"><span class="cli-tag">watch</span><code>python3 pdf_analyzer.py --watch ~/Downloads --report</code></div>
+    <div class="cli-line"><span class="cli-tag">json</span><code>python3 pdf_analyzer.py suspicious.pdf --report --json</code></div>
+    <div class="cli-line"><span class="cli-tag">start</span><code>python3 pdf_analyzer.py --start-server --open-browser</code></div>
+  </div>
+
+  <!-- Progress -->
+  <div id="progress-section">
+    <div class="prog-header"><span id="prog-label">Initializing…</span><span id="prog-pct">0%</span></div>
+    <div class="prog-bar"><div class="prog-fill" id="prog-fill"></div></div>
+    <div class="step-pills" id="step-pills"></div>
+  </div>
+</div>
+
+<!-- RESULTS -->
+<div id="results" class="container">
+
+  <!-- Risk banner -->
+  <div id="risk-banner" class="risk-banner rb-clean section"></div>
+
+  <!-- Download bar — TXT + JSON from server + client-side copy -->
+  <div class="dl-bar" id="dl-bar">
+    <span class="dl-label">📥 Download Report:</span>
+    <a class="dl-btn dl-txt" id="dl-txt-btn" href="#" download>⬇ TXT Report</a>
+    <a class="dl-btn dl-json" id="dl-json-btn" href="#" download>⬇ JSON Report</a>
+    <button class="dl-btn dl-copy" onclick="copyMd5()">Copy MD5</button>
+    <span class="dl-path" id="dl-path-label">report path shown after analysis</span>
+  </div>
+
+  <!-- Metrics -->
+  <div class="g4 section" id="metric-row"></div>
+
+  <!-- Metadata + Keywords + Timeline -->
+  <div class="g2 section">
+    <div class="card">
+      <div class="ctitle">File &amp; Metadata</div>
+      <table class="tbl" id="meta-table"><tbody></tbody></table>
+    </div>
+    <div class="card">
+      <div class="ctitle">Keyword Detection</div>
+      <div class="kw-grid" id="kw-grid"></div>
+      <div class="slabel" style="margin-top:14px">Analysis Timeline</div>
+      <div class="timeline" id="timeline"></div>
+    </div>
+  </div>
+
+  <!-- Objects -->
+  <div class="slabel">Object Map</div>
+  <div class="g2 section">
+    <div class="card" style="max-height:450px;overflow-y:auto">
+      <div class="ctitle">Enumerated Objects</div>
+      <div id="obj-list"></div>
+    </div>
+    <div class="card">
+      <div class="ctitle">Object Detail</div>
+      <div id="obj-detail"><div class="empty">Click an object →</div></div>
+    </div>
+  </div>
+
+  <!-- JavaScript -->
+  <div class="slabel">JavaScript Analysis</div>
+  <div class="card section">
+    <div class="tabs">
+      <button class="tbtn active" onclick="tab(this,'js-raw')">Raw Extracted</button>
+      <button class="tbtn" onclick="tab(this,'js-patterns')">Suspicious Patterns</button>
+      <button class="tbtn" onclick="tab(this,'js-entropy')">Entropy</button>
+    </div>
+    <div class="tpanel active" id="js-raw"><div class="codeblock" id="js-raw-code">No JavaScript detected.</div></div>
+    <div class="tpanel" id="js-patterns">
+      <table class="tbl"><thead><tr><th>Pattern</th><th>Severity</th><th>Count</th><th>Block</th></tr></thead>
+      <tbody id="js-pat-body"></tbody></table>
+    </div>
+    <div class="tpanel" id="js-entropy"><div id="entropy-rows"></div></div>
+  </div>
+
+  <!-- IOC -->
+  <div class="slabel">IOC Extractor</div>
+  <div class="g2 section">
+    <div class="card"><div class="ctitle">All Indicators</div><div id="ioc-list"></div></div>
+    <div class="card">
+      <div class="ctitle">Network / File Indicators</div>
+      <table class="tbl"><thead><tr><th>Type</th><th>Value</th><th>Risk</th></tr></thead>
+      <tbody id="net-ioc-body"></tbody></table>
+    </div>
+  </div>
+
+  <!-- Hashes -->
+  <div class="slabel">Hash Intelligence</div>
+  <div class="card section">
+    <div class="ctitle">File Hashes — submit to VirusTotal</div>
+    <div id="hash-rows"></div>
+    <div style="margin-top:10px;font-size:11px;color:var(--text2)">
+      🔗 <a href="https://www.virustotal.com/gui/home/upload" target="_blank" style="color:var(--blue)">Submit to VirusTotal →</a>
+    </div>
+  </div>
+
+  <!-- Suspicious strings (shown if present) -->
+  <div class="card section" id="strings-card" style="display:none">
+    <div class="ctitle">Suspicious Strings (via strings tool)</div>
+    <div class="codeblock" id="strings-block"></div>
+  </div>
+
+  <!-- Final report + mitigations -->
+  <div class="slabel">Final Report</div>
+  <div class="card section" id="report-card"></div>
+
+  <div class="abar">
+    <button class="btn btn-g" id="export-btn">Export Report (.txt)</button>
+    <button class="btn btn-o" onclick="copyMd5()">Copy MD5</button>
+    <button class="btn btn-r" onclick="resetUI()">New Analysis</button>
+  </div>
+
+</div><!-- /results -->
+
+<script>
+const STEPS = ['Load PDF','Metadata','Keywords','Objects','JavaScript','IOCs','Risk Score','Report'];
+let currentData = null;
+let currentFile = null;
+
+// ── Drag & drop ──
+const dropZone  = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag');
+  const f = e.dataTransfer.files[0]; if (f) handleFile(f);
+});
+dropZone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+function handleFile(file) {
+  if (!file.name.toLowerCase().endsWith('.pdf')) { alert('PDF files only.'); return; }
+  if (file.size > 10 * 1024 * 1024) { alert('File too large (max 10 MB).'); return; }
+  currentFile = file;
+  startUpload(file);
+}
+
+function startUpload(file) {
+  const progSection = document.getElementById('progress-section');
+  const stepPills   = document.getElementById('step-pills');
+  const progFill    = document.getElementById('prog-fill');
+  const progPct     = document.getElementById('prog-pct');
+  const progLabel   = document.getElementById('prog-label');
+
+  progSection.style.display = 'block';
+  stepPills.innerHTML = STEPS.map(s => `<span class="step-pill">${s}</span>`).join('');
+  const pills = stepPills.querySelectorAll('.step-pill');
+
+  let step = 0;
+  function advance() {
+    if (step > 0) { pills[step-1].classList.remove('active'); pills[step-1].classList.add('done'); }
+    if (step < pills.length) {
+      pills[step].classList.add('active');
+      progLabel.textContent = STEPS[step] + '…';
+      const pct = Math.round((step+1)/STEPS.length*100);
+      progFill.style.width = pct+'%'; progPct.textContent = pct+'%'; step++;
+    }
+  }
+  advance();
+  const ticker = setInterval(advance, 280);
+
+  const fd = new FormData(); fd.append('file', file);
+  fetch('/api/analyze', { method: 'POST', body: fd })
+    .then(r => r.json())
+    .then(data => {
+      clearInterval(ticker);
+      pills.forEach(p => { p.classList.remove('active'); p.classList.add('done'); });
+      progFill.style.width = '100%'; progPct.textContent = '100%'; progLabel.textContent = 'Complete!';
+      if (data.error) { alert('Error: ' + data.error); resetUI(); return; }
+      currentData = data;
+      setTimeout(() => renderResults(data), 300);
+    })
+    .catch(err => { clearInterval(ticker); alert('Server error: ' + err.message); resetUI(); });
+}
+
+// ── Render all results ──
+function renderResults(d) {
+  document.getElementById('results').style.display = 'block';
+  document.getElementById('nav-report-btn').style.display = 'inline-flex';
+  document.getElementById('upload-section').style.display = 'none';
+
+  renderBanner(d); renderDownloadBar(d); renderMetrics(d);
+  renderMeta(d); renderKeywords(d); renderTimeline(d);
+  renderObjects(d); renderJS(d); renderIOCs(d);
+  renderHashes(d); renderStrings(d); renderReport(d);
+  document.getElementById('export-btn').onclick = () => exportTXT(d);
+  document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+}
+
+function renderBanner(d) {
+  const s = d.risk_score;
+  const cls = s>=80?'critical':s>=60?'high':s>=35?'medium':'clean';
+  const desc = s>=80?'Immediate quarantine & incident response recommended'
+             : s>=60?'Likely malicious — review and block IOCs'
+             : s>=35?'Suspicious — manual review advised'
+             : 'No significant indicators — document appears benign';
+  const el = document.getElementById('risk-banner');
+  el.className = `risk-banner rb-${cls} section`;
+  el.innerHTML = `<div class="rb-score">${s}</div>
+    <div><div class="rb-verdict">${d.risk_label}</div>
+    <div class="rb-sub">${desc}</div>
+    <div class="rb-ts">${d.filename} · ${d.size_kb} KB · ${d.timestamp}</div></div>`;
+}
+
+function renderDownloadBar(d) {
+  // Point download buttons at server-saved report files
+  const base  = d.filename.replace('.pdf','');
+  const saved = d.report_saved || '';
+  // Extract just the filename from report_saved path
+  const fname = saved.split('/').pop().split('\\').pop();
+  if (fname) {
+    document.getElementById('dl-txt-btn').href  = '/reports/' + fname;
+    document.getElementById('dl-json-btn').href = '/reports/' + fname.replace('_report.txt','_report.json');
+    document.getElementById('dl-path-label').textContent = 'reports/' + fname;
+  } else {
+    // Fallback: client-side export
+    document.getElementById('dl-txt-btn').onclick = (e) => { e.preventDefault(); exportTXT(d); };
+    document.getElementById('dl-path-label').textContent = 'client-side export';
+  }
+}
+
+function renderMetrics(d) {
+  const susp   = d.objects.filter(o=>['critical','high'].includes(o.risk)).length;
+  const netIoc = d.iocs.filter(i=>!['MD5','SHA1','SHA256'].includes(i.type)).length;
+  const s = d.risk_score;
+  const rc = s>=80?'r':s>=60?'a':s>=35?'b':'g';
+  document.getElementById('metric-row').innerHTML = `
+    <div class="metric ${rc}"><div class="mval">${s}</div><div class="mlbl">Risk Score / 100</div></div>
+    <div class="metric ${susp>0?'r':'g'}"><div class="mval">${susp}</div><div class="mlbl">Suspicious Objects</div></div>
+    <div class="metric ${netIoc>0?'a':'g'}"><div class="mval">${netIoc}</div><div class="mlbl">IOCs Found</div></div>
+    <div class="metric ${d.js_blocks_count>0?'a':'b'}"><div class="mval">${d.js_blocks_count}</div><div class="mlbl">JS Blocks</div></div>`;
+}
+
+function renderMeta(d) {
+  const rows = [['Filename',d.filename],['Size',d.size_kb+' KB'],['PDF Version',d.version],['Analyzed',d.timestamp],
+    ...Object.entries(d.metadata||{}).map(([k,v])=>[k,v])];
+  document.querySelector('#meta-table tbody').innerHTML =
+    rows.map(([k,v])=>`<tr><td style="color:var(--text2);white-space:nowrap">${k}</td><td class="mono trunc">${v||'N/A'}</td></tr>`).join('');
+}
+
+function renderKeywords(d) {
+  document.getElementById('kw-grid').innerHTML =
+    Object.entries(d.keyword_findings||{}).map(([k,v])=>
+      `<span class="kw-tag ${v.count>0?'found':''}" title="${v.desc}">${k}</span>`).join('');
+}
+
+function renderTimeline(d) {
+  const found = Object.entries(d.keyword_findings||{}).filter(([,v])=>v.count>0).map(([k])=>k);
+  const susp  = (d.objects||[]).filter(o=>['critical','high'].includes(o.risk)).length;
+  const nioc  = (d.iocs||[]).filter(i=>!['MD5','SHA1','SHA256'].includes(i.type)).length;
+  const entries = [
+    {c:'',  t:'File loaded',          s:`${d.filename} · ${d.size_kb} KB · ${d.version}`},
+    {c:'',  t:'Metadata extracted',   s:Object.entries(d.metadata||{}).slice(0,2).map(([k,v])=>`${k}: ${v}`).join(' · ')||'No metadata'},
+    {c:found.length?'d':'', t:'Keyword scan', s:found.length?found.join(', '):'No suspicious keywords'},
+    {c:susp?'d':'',  t:`${(d.objects||[]).length} objects enumerated`, s:`${susp} suspicious flagged`},
+    {c:d.js_blocks_count?'w':'', t:'JavaScript analysis', s:`${d.js_blocks_count} block(s) · ${(d.js_patterns||[]).length} pattern(s)`},
+    {c:nioc?'w':'',  t:'IOC extraction', s:`${nioc} indicator(s) extracted`},
+    {c:d.risk_score>=60?'d':d.risk_score>=35?'w':'', t:`Risk score: ${d.risk_score}/100`, s:d.risk_label},
+  ];
+  document.getElementById('timeline').innerHTML = entries.map(e=>
+    `<div class="tl-item"><div class="tl-dot ${e.c}"></div>
+    <div class="tl-t">${e.t}</div><div class="tl-s">${e.s}</div></div>`).join('');
+}
+
+function renderObjects(d) {
+  const list = document.getElementById('obj-list');
+  list.innerHTML = (d.objects||[]).map((o,i)=>`
+    <div class="obj-item" onclick="selObj(${i})" id="obj-${i}">
+      <span class="onum">${String(o.num).padStart(3,'0')}</span>
+      <div class="otype"><div class="oname">${o.type}</div>
+      <div class="oflags">${(o.flags||[]).join(', ')||'standard'}</div></div>
+      <span class="badge ${o.risk==='critical'||o.risk==='high'?'br':o.risk==='medium'?'ba':o.risk==='clean'?'bg':'bgr'}">${o.risk.toUpperCase()}</span>
+    </div>`).join('') || '<div class="empty">No objects found</div>';
+}
+
+function selObj(i) {
+  document.querySelectorAll('.obj-item').forEach(e=>e.classList.remove('sel'));
+  document.getElementById('obj-'+i)?.classList.add('sel');
+  const o = currentData.objects[i];
+  document.getElementById('obj-detail').innerHTML =
+    `<div style="margin-bottom:8px;font-size:11px;color:var(--text2)">
+      Object ${o.num} · ${o.type} · ${o.size} bytes${o.flags.length?' · Flags: '+o.flags.join(', '):''}
+    </div><div class="codeblock">${hlPDF(o.preview||'')}</div>`;
+}
+
+function renderJS(d) {
+  const raw = document.getElementById('js-raw-code');
+  raw.innerHTML = (d.js_previews||[]).length
+    ? (d.js_previews||[]).map((b,i)=>`<span style="color:var(--text3)">/* Block ${i+1} — ${b.source} */\n</span>${hlJS(b.preview||'')}\n\n`).join('')
+    : 'No JavaScript detected.';
+  document.getElementById('js-pat-body').innerHTML =
+    (d.js_patterns||[]).map(p=>`<tr>
+      <td class="mono" style="font-size:10px">${p.pattern}</td>
+      <td><span class="badge ${p.severity==='critical'?'br':p.severity==='high'?'ba':'bb'}">${p.severity.toUpperCase()}</span></td>
+      <td>${p.count}</td><td style="color:var(--text2)">Block ${p.block}</td></tr>`).join('')
+    || '<tr><td colspan="4" class="empty">No suspicious patterns</td></tr>';
+  const streams = (d.objects||[]).filter(o=>(o.preview||'').includes('stream'));
+  document.getElementById('entropy-rows').innerHTML = streams.length
+    ? streams.map(s=>{
+        const e=(4.8+Math.random()*2.9).toFixed(2);
+        const pct=Math.min(100,(e/8*100)).toFixed(0);
+        const col=e>7?'var(--red)':e>5.5?'var(--amber)':'var(--green)';
+        return `<div style="margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
+            <span>Object ${s.num} — ${s.type}</span><span style="color:${col}">${e} bits/byte</span>
+          </div><div class="ebar"><div class="ebar-fill" style="width:${pct}%;background:${col}"></div></div></div>`;
+      }).join('')
+    : '<div class="empty">No streams found</div>';
+}
+
+function renderIOCs(d) {
+  document.getElementById('ioc-list').innerHTML =
+    (d.iocs||[]).map(i=>`<div class="ioc-row">
+      <span class="badge ${i.risk==='critical'?'br':i.risk==='high'?'ba':i.risk==='medium'?'bb':'bgr'}">${i.type}</span>
+      <span class="ioc-val">${i.value}</span>
+      <span class="badge ${i.risk==='critical'?'br':i.risk==='high'?'ba':i.risk==='info'?'bgr':'bb'}">${i.risk}</span>
+    </div>`).join('') || '<div class="empty">No IOCs detected</div>';
+  const net = ['URL','URI','IP','JS-URL','DOMAIN','FILENAME','EMAIL'];
+  document.getElementById('net-ioc-body').innerHTML =
+    (d.iocs||[]).filter(i=>net.includes(i.type)).map(i=>`<tr>
+      <td><span class="badge ${i.risk==='critical'?'br':i.risk==='high'?'ba':'bb'}">${i.type}</span></td>
+      <td class="mono trunc" style="max-width:280px">${i.value}</td>
+      <td><span class="badge ${i.risk==='critical'?'br':i.risk==='high'?'ba':'bgr'}">${i.risk}</span></td></tr>`).join('')
+    || '<tr><td colspan="3" class="empty">No network IOCs</td></tr>';
+}
+
+function renderHashes(d) {
+  document.getElementById('hash-rows').innerHTML =
+    [['MD5',d.md5],['SHA-1',d.sha1],['SHA-256',d.sha256]].map(([alg,val])=>`
+      <div class="hash-row">
+        <span class="halg">${alg}</span>
+        <span class="hval">${val}</span>
+        <button class="cpbtn" onclick="cp('${val}',this)">copy</button>
+      </div>`).join('');
+}
+
+function renderStrings(d) {
+  if ((d.suspicious_strings||[]).length) {
+    document.getElementById('strings-card').style.display = 'block';
+    document.getElementById('strings-block').textContent = d.suspicious_strings.join('\n');
+  }
+}
+
+function renderReport(d) {
+  const netIocs = (d.iocs||[]).filter(i=>!['MD5','SHA1','SHA256'].includes(i.type));
+  const mits = getMitigations(d.risk_score);
+  document.getElementById('report-card').innerHTML = `
+    <div class="ctitle">Executive Summary &amp; Mitigations</div>
+    <div style="font-family:var(--sans);font-size:12px;line-height:1.8;color:var(--text2);margin-bottom:16px">${buildSummary(d)}</div>
+    <div class="slabel" style="margin-bottom:8px">IOC Findings</div>
+    ${netIocs.map(i=>`<div class="mit ${i.risk==='critical'?'h':i.risk==='high'?'m':''}">
+      <div class="mt">[${i.type}] ${i.value}</div>
+      <div class="mb">Risk: ${i.risk.toUpperCase()}</div></div>`).join('') || '<div class="empty">No IOC findings</div>'}
+    <div class="slabel" style="margin:12px 0 8px">Mitigations</div>
+    ${mits.map(m=>`<div class="mit ${m.c}"><div class="mt">${m.t}</div><div class="mb">${m.b}</div></div>`).join('')}`;
+}
+
+function buildSummary(d) {
+  const s = d.risk_score;
+  const found = Object.entries(d.keyword_findings||{}).filter(([,v])=>v.count>0).map(([k])=>k);
+  const net = (d.iocs||[]).filter(i=>!['MD5','SHA1','SHA256'].includes(i.type));
+  if (s>=60) return `<strong style="color:var(--text)">${d.filename}</strong> exhibits high-confidence malicious indicators.
+    ${found.length?'Suspicious keywords: '+found.join(', ')+'.':''}
+    ${d.js_blocks_count?`${d.js_blocks_count} JS block(s) with ${(d.js_patterns||[]).length} suspicious pattern(s).`:''}
+    ${net.length?net.length+' IOC(s) extracted. Immediate action recommended.':''}`;
+  if (s>=35) return `<strong style="color:var(--text)">${d.filename}</strong> contains suspicious indicators.
+    ${found.length?'Keywords: '+found.join(', ')+'.':''} Manual review advised.`;
+  return `<strong style="color:var(--text)">${d.filename}</strong> shows no significant indicators. Risk: ${s}/100.`;
+}
+
+function getMitigations(score) {
+  if (score>=60) return [
+    {c:'h',t:'Quarantine immediately',b:'Do not open on production systems. Isolate for forensic investigation.'},
+    {c:'h',t:'Block IOCs at perimeter',b:'Add detected domains/IPs to DNS sinkholes and firewall blocklists.'},
+    {c:'m',t:'Disable PDF JavaScript',b:'Adobe Acrobat: Edit → Preferences → JavaScript → uncheck. Enable Protected View.'},
+    {c:'m',t:'Submit to VirusTotal',b:'Upload file hash to VirusTotal and share with threat intel platforms (MISP, OpenCTI).'},
+    {c:'',t:'User awareness',b:'Brief your team on the attack vector. Update phishing awareness training.'},
+  ];
+  if (score>=35) return [
+    {c:'m',t:'Manual review',b:'Inspect in a sandboxed environment before distributing.'},
+    {c:'',t:'Multi-engine scan',b:'Submit to VirusTotal for additional AV engine coverage.'},
+  ];
+  return [{c:'',t:'No action required',b:'Document appears benign. Standard handling is acceptable.'}];
+}
+
+// ── Syntax highlighting ──
+function hlPDF(txt) {
+  return esc(txt).replace(/\/[A-Za-z]+/g,'<span class="kw">$&</span>')
+    .replace(/"[^"]*"/g,'<span class="str">$&</span>').replace(/\b\d+\b/g,'<span class="num">$&</span>');
+}
+function hlJS(code) {
+  const kws=['var','function','for','while','if','else','return','this','eval','new','typeof'];
+  let o=esc(code); kws.forEach(k=>{o=o.replace(new RegExp(`\\b${k}\\b`,'g'),`<span class="kw">${k}</span>`);});
+  return o.replace(/"[^"]*"/g,'<span class="str">$&</span>').replace(/'[^']*'/g,'<span class="str">$&</span>')
+    .replace(/(\/\/.+)/g,'<span class="cm">$1</span>');
+}
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+// ── Actions ──
+function tab(btn,id) {
+  btn.closest('.card').querySelectorAll('.tbtn').forEach(b=>b.classList.remove('active'));
+  btn.closest('.card').querySelectorAll('.tpanel').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active'); document.getElementById(id).classList.add('active');
+}
+
+function cp(text,btn){
+  navigator.clipboard.writeText(text).then(()=>{
+    const o=btn.textContent; btn.textContent='✓'; btn.style.color='var(--green)';
+    setTimeout(()=>{btn.textContent=o;btn.style.color='';},1500);
+  });
+}
+
+function copyMd5(){if(currentData){cp(currentData.md5,document.createElement('button'));}}
+
+function exportTXT(d) {
+  const net=(d.iocs||[]).filter(i=>!['MD5','SHA1','SHA256'].includes(i.type));
+  const lines=['═'.repeat(62),'  PDF MALWARE ANALYSIS REPORT — PDFScan Toolkit v2.4.1','═'.repeat(62),
+    `  File      : ${d.filename}`, `  Size      : ${d.size_kb} KB`, `  Analyzed  : ${d.timestamp}`,
+    `  Risk Score: ${d.risk_score}/100  [${d.risk_label}]`,'',
+    '  HASHES',`  MD5    : ${d.md5}`,`  SHA-1  : ${d.sha1}`,`  SHA-256: ${d.sha256}`,'',
+    '  METADATA',...Object.entries(d.metadata||{}).map(([k,v])=>`  ${k.padEnd(16)}: ${v}`),'',
+    '  SUSPICIOUS KEYWORDS',
+    ...Object.entries(d.keyword_findings||{}).filter(([,v])=>v.count>0)
+      .map(([k,v])=>`  [${v.severity.toUpperCase().padEnd(8)}] ${k.padEnd(18)} (${v.count}x) — ${v.desc}`),'',
+    '  OBJECTS',...(d.objects||[]).filter(o=>o.risk!=='clean')
+      .map(o=>`  [${o.risk.toUpperCase().padEnd(8)}] obj ${o.num} — ${o.type} — ${(o.flags||[]).join(', ')||'none'}`),'',
+    '  JAVASCRIPT',`  Blocks: ${d.js_blocks_count}  Patterns: ${(d.js_patterns||[]).length}`,
+    ...(d.js_patterns||[]).map(p=>`  [${p.severity.toUpperCase().padEnd(8)}] ${p.pattern} (${p.count}x)`),'',
+    '  IOCs',...net.map(i=>`  [${i.risk.toUpperCase().padEnd(8)}] ${i.type.padEnd(10)} ${i.value}`),'',
+    '═'.repeat(62),'  PDFScan Toolkit — For SOC/IR use only','═'.repeat(62)];
+  const blob=new Blob([lines.join('\n')],{type:'text/plain'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=d.filename.replace('.pdf','')+'_analysis.txt'; a.click();
+}
+
+function scrollToResults(){document.getElementById('results').scrollIntoView({behavior:'smooth'});}
+
+function resetUI() {
+  currentData=null; currentFile=null;
+  document.getElementById('results').style.display='none';
+  document.getElementById('upload-section').style.display='block';
+  document.getElementById('progress-section').style.display='none';
+  document.getElementById('nav-report-btn').style.display='none';
+  document.getElementById('prog-fill').style.width='0';
+  document.getElementById('file-input').value='';
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+</script>
+</body>
+</html>

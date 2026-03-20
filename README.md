@@ -49,23 +49,3 @@ python3 app.py
 ## Deployment Link
 
    `https://pdf-analysis-tool.onrender.com/`
-
----
-
-## Environment Variables (optional)
-
-| Variable      | Default | Description              |
-|---------------|---------|--------------------------|
-| PORT          | 5000    | Server port              |
-| FLASK_DEBUG   | false   | Enable debug mode        |
-
----
-
-## Usage After Deploy
-
-| URL                  | Description                          |
-|----------------------|--------------------------------------|
-| /                    | Live analysis UI (real PDF upload)   |
-| /toolkit             | Original demo HTML toolkit           |
-| /api/analyze         | POST endpoint (multipart PDF)        |
-| /api/health          | Health check JSON                    |

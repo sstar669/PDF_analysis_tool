@@ -48,4 +48,6 @@ python3 app.py
 
 ## Deployment Link
 
+IF you want to open in internet directly:
+
    `https://pdf-analysis-tool.onrender.com/`
